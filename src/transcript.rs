@@ -12,15 +12,8 @@ pub struct TranscriptClient {
 struct CaptionTrack {
     #[serde(rename = "baseUrl")]
     base_url: String,
-    name: CaptionName,
     #[serde(rename = "languageCode")]
     language_code: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct CaptionName {
-    #[serde(rename = "simpleText")]
-    simple_text: String,
 }
 
 impl TranscriptClient {
@@ -37,19 +30,44 @@ impl TranscriptClient {
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
         let html = self.client.get(&url).send().await?.text().await?;
 
-        // Extract the ytInitialPlayerResponse JSON variable from the HTML
-        let re = Regex::new(r#"var ytInitialPlayerResponse = (\{.*?\});var"#)?;
-        let captures = re.captures(&html).ok_or("Could not find ytInitialPlayerResponse in HTML")?;
-        
-        let json_str = captures.get(1).unwrap().as_str();
-        let player_response: Value = serde_json::from_str(json_str)?;
+        // 1. Extract the INNERTUBE_API_KEY and ytInitialPlayerResponse
+        let key_re = Regex::new(r#"\"INNERTUBE_API_KEY\":\s*\"([^\"]+)\""#)?;
+        let captures = key_re.captures(&html).ok_or("Could not find INNERTUBE_API_KEY in HTML")?;
+        let api_key = captures.get(1).unwrap().as_str();
 
-        // Navigate through the heavily nested JSON structure to find caption tracks
-        let captions_block = player_response
+        // 2. Fetch fresh tracks from innertube API (this bypasses 'exp=xpe' proof-of-token blocks)
+        let innertube_url = format!("https://www.youtube.com/youtubei/v1/player?key={}", api_key);
+        
+        let payload = serde_json::json!({
+            "context": {
+                "client": {
+                    "clientName": "ANDROID",
+                    "clientVersion": "20.10.38"
+                }
+            },
+            "videoId": video_id
+        });
+
+        let innertube_response: Value = self.client
+            .post(&innertube_url)
+            .json(&payload)
+            .send()
+            .await?
+            .json()
+            .await?;
+
+        // 3. Navigate the heavily nested JSON
+        let captions_block = innertube_response
             .get("captions")
             .and_then(|c| c.get("playerCaptionsTracklistRenderer"))
             .and_then(|p| p.get("captionTracks"))
-            .ok_or("No captions available for this video.")?;
+            .ok_or_else(|| {
+                // Return a clear error with the actual response JSON to help debug
+                match serde_json::to_string_pretty(&innertube_response) {
+                    Ok(json_str) => format!("No captions available for this video.\nResponse: {}", json_str),
+                    Err(_) => "No captions available for this video.".to_string(),
+                }
+            })?;
 
         let tracks: Vec<CaptionTrack> = serde_json::from_value(captions_block.clone())?;
         
@@ -58,18 +76,20 @@ impl TranscriptClient {
             .find(|t| t.language_code.starts_with("ko"))
             .unwrap_or_else(|| tracks.first().unwrap());
 
-        // The URL returns XML by default. We can add &fmt=json3 to get JSON, but XML is easy enough to parse manually.
+        // 4. Download and parse the Android default XML transcript format
         let transcript_xml = self.client.get(&track.base_url).send().await?.text().await?;
         
-        // Very basic XML parser extracting <text> tags
-        let text_re = Regex::new(r#"<text[^>]*>(.*?)</text>"#)?;
-        let mut transcript = String::new();
-
-        for cap in text_re.captures_iter(&transcript_xml) {
-            let decoded = html_escape::decode_html_entities(cap.get(1).unwrap().as_str());
-            transcript.push_str(&decoded);
-            transcript.push(' ');
-        }
+        let tags_re = Regex::new(r#"<[^>]*>"#)?;
+        
+        // Strip all XML tags, replacing them with a space so words don't get glued together
+        let mut transcript = tags_re.replace_all(&transcript_xml, " ").into_owned();
+        
+        // Decode HTML entities (e.g., &#39; to ')
+        transcript = html_escape::decode_html_entities(&transcript).into_owned();
+        
+        // Normalize whitespace (remove multiple spaces and newlines)
+        let whitespace_re = Regex::new(r#"\s+"#)?;
+        transcript = whitespace_re.replace_all(&transcript, " ").into_owned();
 
         Ok(transcript.trim().to_string())
     }
