@@ -53,9 +53,9 @@ impl TranscriptClient {
 
         let tracks: Vec<CaptionTrack> = serde_json::from_value(captions_block.clone())?;
         
-        // Find English tracks preferred, or fallback to the first available
+        // Find Korean tracks preferred, or fallback to the first available
         let track = tracks.iter()
-            .find(|t| t.language_code.starts_with("en"))
+            .find(|t| t.language_code.starts_with("kr"))
             .unwrap_or_else(|| tracks.first().unwrap());
 
         // The URL returns XML by default. We can add &fmt=json3 to get JSON, but XML is easy enough to parse manually.
