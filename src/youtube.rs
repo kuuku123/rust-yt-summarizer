@@ -44,7 +44,7 @@ impl YouTubeClient {
     /// Fetches videos from the specified channel published within the last 24 hours.
     pub async fn get_recent_videos(&self, channel_id: &str) -> Result<Vec<YouTubeSearchResult>, Box<dyn Error>> {
         let one_day_ago: DateTime<Utc> = Utc::now() - Duration::days(1);
-        let published_after = one_day_ago.to_rfc3339();
+        let published_after = one_day_ago.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
         let url = format!(
             "https://www.googleapis.com/youtube/v3/search?part=snippet&channelId={}&maxResults=10&order=date&type=video&publishedAfter={}&key={}",
@@ -54,6 +54,13 @@ impl YouTubeClient {
         );
 
         let response = self.client.get(&url).send().await?;
+        
+        if !response.status().is_success() {
+            let status = response.status();
+            let error_text = response.text().await?;
+            return Err(format!("YouTube API Error ({}): {}", status, error_text).into());
+        }
+
         let search_response: YouTubeSearchResponse = response.json().await?;
 
         // Filter out any results that might not actually be videos (though type=video should handle this)
