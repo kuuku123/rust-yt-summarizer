@@ -55,7 +55,7 @@ impl TranscriptClient {
         
         // Find Korean tracks preferred, or fallback to the first available
         let track = tracks.iter()
-            .find(|t| t.language_code.starts_with("kr"))
+            .find(|t| t.language_code.starts_with("ko"))
             .unwrap_or_else(|| tracks.first().unwrap());
 
         // The URL returns XML by default. We can add &fmt=json3 to get JSON, but XML is easy enough to parse manually.
