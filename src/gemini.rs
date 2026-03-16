@@ -18,7 +18,7 @@ impl GeminiClient {
     /// Summarizes the given text using the Gemini 2.5 Flash API
     pub async fn summarize_text(&self, text: &str) -> Result<String, Box<dyn Error>> {
         let url = format!(
-            "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key={}",
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key={}",
             self.api_key
         );
 
