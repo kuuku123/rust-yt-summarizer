@@ -41,8 +41,11 @@ impl TranscriptClient {
         let payload = serde_json::json!({
             "context": {
                 "client": {
-                    "clientName": "ANDROID",
-                    "clientVersion": "20.10.38"
+                    "clientName": "IOS",
+                    "clientVersion": "19.45.4",
+                    "osName": "iOS",
+                    "deviceMake": "Apple",
+                    "deviceModel": "iPhone14,5"
                 }
             },
             "videoId": video_id
