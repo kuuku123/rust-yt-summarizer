@@ -30,22 +30,19 @@ impl TranscriptClient {
         let url = format!("https://www.youtube.com/watch?v={}", video_id);
         let html = self.client.get(&url).send().await?.text().await?;
 
-        // 1. Extract the INNERTUBE_API_KEY and ytInitialPlayerResponse
+        // 1. Extract the INNERTUBE_API_KEY
         let key_re = Regex::new(r#"\"INNERTUBE_API_KEY\":\s*\"([^\"]+)\""#)?;
         let captures = key_re.captures(&html).ok_or("Could not find INNERTUBE_API_KEY in HTML")?;
         let api_key = captures.get(1).unwrap().as_str();
 
-        // 2. Fetch fresh tracks from innertube API (this bypasses 'exp=xpe' proof-of-token blocks)
+        // 2. Fetch fresh tracks from innertube API (ANDROID works without potokens)
         let innertube_url = format!("https://www.youtube.com/youtubei/v1/player?key={}", api_key);
         
         let payload = serde_json::json!({
             "context": {
                 "client": {
-                    "clientName": "IOS",
-                    "clientVersion": "19.45.4",
-                    "osName": "iOS",
-                    "deviceMake": "Apple",
-                    "deviceModel": "iPhone14,5"
+                    "clientName": "ANDROID",
+                    "clientVersion": "20.10.38",
                 }
             },
             "videoId": video_id

@@ -20,6 +20,7 @@ pub struct VideoId {
     pub video_id: Option<String>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize)]
 pub struct VideoSnippet {
     pub title: String,
